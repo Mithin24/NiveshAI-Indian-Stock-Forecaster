@@ -1,5 +1,6 @@
 import gradio as gr
 import yfinance as yf
+import os
 import pandas as pd
 import numpy as np
 import pickle
@@ -78,4 +79,7 @@ def predict_next_day(ticker, news):
         return str(e)
 
 demo = gr.Interface(fn=predict_next_day, inputs=[gr.Dropdown(TICKERS), gr.Textbox()], outputs="text")
-demo.launch()
+demo.launch(
+    server_name="0.0.0.0",
+    server_port=int(os.environ.get("PORT", 7860))
+)
