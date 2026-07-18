@@ -40,8 +40,16 @@ def setup_models():
         print(f"Error loading models: {e}")
 
 setup_models()
-sentiment_pipe = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+sentiment_pipe = None
 
+def get_sentiment_pipeline():
+    global sentiment_pipe
+    if sentiment_pipe is None:
+        sentiment_pipe = pipeline(
+            "sentiment-analysis",
+            model="distilbert-base-uncased-finetuned-sst-2-english"
+        )
+    return sentiment_pipe
 def get_live_data(ticker):
     df = yf.download(ticker, period="2y", progress=False)
     if isinstance(df.columns, pd.MultiIndex): df = df.xs(ticker, axis=1, level=1)
@@ -71,7 +79,7 @@ def predict_next_day(ticker, news):
         xgb_p = xgb_model.predict(pd.DataFrame([df[FEATURE_COLS].iloc[-1].values], columns=xgb_model.feature_names_in_))[0]
         # Meta & Sentiment
         meta_p = meta_model.predict(pd.DataFrame({'lstm_pred': [lstm_p], 'xgb_pred': [xgb_p]}))[0]
-        res = sentiment_pipe(news[:512])[0]
+        res = get_sentiment_pipe(news[:512])[0]
         impact = {'1 star':-0.05,'2 stars':-0.025,'3 stars':0.0,'4 stars':0.025,'5 stars':0.05}[res['label']]
         final_p = meta_p * (1 + impact)
         return f"Predicted Price: ₹{final_p:.2f} (Sentiment: {res['label']})"
@@ -79,7 +87,8 @@ def predict_next_day(ticker, news):
         return str(e)
 
 demo = gr.Interface(fn=predict_next_day, inputs=[gr.Dropdown(TICKERS), gr.Textbox()], outputs="text")
-demo.launch(
-    server_name="0.0.0.0",
-    server_port=int(os.environ.get("PORT", 7860))
-)
+if __name__ == "__main__":
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=int(os.environ.get("PORT", 10000))
+    )
