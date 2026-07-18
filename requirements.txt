@@ -1,6 +1,7 @@
 gradio==5.38.2
-tensorflow
+tensorflow==2.19.0
 transformers==4.53.0
+torch
 huggingface-hub==0.34.4
 yfinance==0.2.65
 pandas==2.3.1
