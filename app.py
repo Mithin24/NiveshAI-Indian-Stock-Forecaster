@@ -94,25 +94,31 @@ def get_live_data(ticker):
 def predict_next_day(ticker, news):
     try:
         df = get_live_data(ticker)
-        print(df.shape)
-        print(df.tail())
 
         if df.empty:
-            return "No market data."
+            return "❌ No market data."
 
         if len(df) < SEQ_LENGTH:
-            return f"Need {SEQ_LENGTH} rows, got {len(df)}"
-        # LSTM part
-        data_lstm = df[FEATURE_COLS].tail(SEQ_LENGTH).values.astype('float32')
-        print("Data shape:", data_lstm.shape)
-        scaled_lstm = scaler.transform(data_lstm).reshape(1, SEQ_LENGTH, len(FEATURE_COLS))
-        pred_lstm_scaled = lstm_model.predict(scaled_lstm)[0,0]
-        dummy = np.zeros((1, len(FEATURE_COLS)))
-        dummy[0,0] = pred_lstm_scaled
-        lstm_p = scaler.inverse_transform(dummy)[0,0]
-        # XGB part (Simplified for Space)
-        lag = 5
+            return f"❌ Need at least {SEQ_LENGTH} rows, got {len(df)}"
 
+        # ---------- LSTM ----------
+        data_lstm = df[FEATURE_COLS].tail(SEQ_LENGTH).values.astype("float32")
+
+        scaled_lstm = scaler.transform(data_lstm)
+        scaled_lstm = scaled_lstm.reshape(
+            1,
+            SEQ_LENGTH,
+            len(FEATURE_COLS)
+        )
+
+        pred_lstm_scaled = lstm_model.predict(scaled_lstm, verbose=0)[0, 0]
+
+        dummy = np.zeros((1, len(FEATURE_COLS)))
+        dummy[0, 0] = pred_lstm_scaled
+        lstm_p = scaler.inverse_transform(dummy)[0, 0]
+
+        # ---------- XGB ----------
+        lag = 5
         xgb_features = {}
 
         for feature in FEATURE_COLS:
@@ -120,46 +126,47 @@ def predict_next_day(ticker, news):
                 xgb_features[f"{feature}_lag_{i}"] = df[feature].iloc[-i]
 
         xgb_input = pd.DataFrame([xgb_features])
-
-        # Ensure same order as training
         xgb_input = xgb_input[xgb_model.feature_names_in_]
 
         xgb_p = xgb_model.predict(xgb_input)[0]
-        # Meta prediction
+
+        # ---------- Meta ----------
         meta_p = meta_model.predict(
             pd.DataFrame({
-                'lstm_pred': [lstm_p],
-                'xgb_pred': [xgb_p]
+                "lstm_pred": [lstm_p],
+                "xgb_pred": [xgb_p]
             })
         )[0]
 
-        # Sentiment (optional)
-        try:
-            res = get_sentiment_pipeline()(news[:512])[0]
+        # ---------- Sentiment ----------
+        impact = 0
+        sentiment = "NEUTRAL"
 
-            if res["label"] == "POSITIVE":
-                impact = 0.03
-            elif res["label"] == "NEGATIVE":
-                impact = -0.03
-            else:
-                impact = 0
+        if news.strip():
+            try:
+                res = get_sentiment_pipeline()(news[:512])[0]
+                sentiment = res["label"]
 
-        except Exception as e:
-            print("Sentiment Error:", e)
-            impact = 0
-            res = {"label": "NEUTRAL"}
+                if sentiment == "POSITIVE":
+                    impact = 0.03
+                elif sentiment == "NEGATIVE":
+                    impact = -0.03
 
-        final_p = meta_p * (1 + impact)
+            except Exception as e:
+                print("Sentiment Error:", e)
 
-        return f"""
-        Predicted Price : ₹{final_p:.2f}
+        final_price = meta_p * (1 + impact)
 
-        LSTM Prediction : ₹{lstm_p:.2f}
-        XGBoost Prediction : ₹{xgb_p:.2f}
-        Meta Prediction : ₹{meta_p:.2f}
+        return (
+            f"Predicted Price: ₹{final_price:.2f}\n\n"
+            f"LSTM: ₹{lstm_p:.2f}\n"
+            f"XGBoost: ₹{xgb_p:.2f}\n"
+            f"Meta: ₹{meta_p:.2f}\n"
+            f"Sentiment: {sentiment}"
+        )
 
-        Sentiment : {res['label']}
-        """
+    except Exception as e:
+        return f"❌ {e}"
 
 demo = gr.Interface(fn=predict_next_day, inputs=[gr.Dropdown(TICKERS), gr.Textbox()], outputs="text")
 if __name__ == "__main__":
