@@ -76,7 +76,20 @@ def predict_next_day(ticker, news):
         dummy[0,0] = pred_lstm_scaled
         lstm_p = scaler.inverse_transform(dummy)[0,0]
         # XGB part (Simplified for Space)
-        xgb_p = xgb_model.predict(pd.DataFrame([df[FEATURE_COLS].iloc[-1].values], columns=xgb_model.feature_names_in_))[0]
+        lag = 5
+
+        xgb_features = {}
+
+        for feature in FEATURE_COLS:
+            for i in range(1, lag + 1):
+                xgb_features[f"{feature}_lag_{i}"] = df[feature].iloc[-i]
+
+        xgb_input = pd.DataFrame([xgb_features])
+
+        # Ensure same order as training
+        xgb_input = xgb_input[xgb_model.feature_names_in_]
+
+        xgb_p = xgb_model.predict(xgb_input)[0]
         # Meta & Sentiment
         meta_p = meta_model.predict(pd.DataFrame({'lstm_pred': [lstm_p], 'xgb_pred': [xgb_p]}))[0]
         res = get_sentiment_pipeline()(news[:512])[0]
