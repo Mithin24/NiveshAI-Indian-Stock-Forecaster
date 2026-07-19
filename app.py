@@ -51,25 +51,57 @@ def get_sentiment_pipeline():
         )
     return sentiment_pipe
 def get_live_data(ticker):
-    df = yf.download(ticker, period="2y", progress=False)
-    if isinstance(df.columns, pd.MultiIndex): df = df.xs(ticker, axis=1, level=1)
+    df = yf.download(
+        ticker,
+        period="5y",
+        auto_adjust=False,
+        progress=False
+    )
+
+    if df.empty:
+        raise ValueError(f"No data downloaded for {ticker}")
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
     df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-    delta = df['Close'].diff()
-    gain = delta.where(delta > 0, 0).rolling(14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-    df['RSI'] = 100 - (100 / (1 + (gain / loss)))
+
+    # Technical Indicators
+    df['RSI'] = ta.momentum.RSIIndicator(df['Close']).rsi()
+
+    macd = ta.trend.MACD(df['Close'])
+    df['MACD'] = macd.macd()
+    df['MACD_Signal'] = macd.macd_signal()
+
+    bb = ta.volatility.BollingerBands(df['Close'])
+    df['Bollinger_High'] = bb.bollinger_hband()
+    df['Bollinger_Low'] = bb.bollinger_lband()
+
     df['Return'] = df['Close'].pct_change()
-    df['MACD'] = ta.trend.macd(df['Close'])
-    df['MACD_Signal'] = ta.trend.macd_signal(df['Close'])
-    df['Bollinger_High'] = ta.volatility.bollinger_hband(df['Close'])
-    df['Bollinger_Low'] = ta.volatility.bollinger_lband(df['Close'])
-    return df.dropna()
+
+    df = df.dropna()
+
+    if len(df) < SEQ_LENGTH:
+        raise ValueError(
+            f"Only {len(df)} rows available after preprocessing."
+        )
+
+    return df
 
 def predict_next_day(ticker, news):
     try:
         df = get_live_data(ticker)
+        print(df.shape)
+        print(df.tail())
+
+        if df.empty:
+            return "No market data."
+
+        if len(df) < SEQ_LENGTH:
+            return f"Need {SEQ_LENGTH} rows, got {len(df)}"
         # LSTM part
         data_lstm = df[FEATURE_COLS].tail(SEQ_LENGTH).values.astype('float32')
+        print("Data shape:", data_lstm.shape)
         scaled_lstm = scaler.transform(data_lstm).reshape(1, SEQ_LENGTH, len(FEATURE_COLS))
         pred_lstm_scaled = lstm_model.predict(scaled_lstm)[0,0]
         dummy = np.zeros((1, len(FEATURE_COLS)))
