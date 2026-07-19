@@ -44,11 +44,14 @@ sentiment_pipe = None
 
 def get_sentiment_pipeline():
     global sentiment_pipe
+
     if sentiment_pipe is None:
         sentiment_pipe = pipeline(
             "sentiment-analysis",
-            model="distilbert-base-uncased-finetuned-sst-2-english"
+            model="distilbert-base-uncased-finetuned-sst-2-english",
+            framework="tf"
         )
+
     return sentiment_pipe
 def get_live_data(ticker):
     df = yf.download(
@@ -122,14 +125,41 @@ def predict_next_day(ticker, news):
         xgb_input = xgb_input[xgb_model.feature_names_in_]
 
         xgb_p = xgb_model.predict(xgb_input)[0]
-        # Meta & Sentiment
-        meta_p = meta_model.predict(pd.DataFrame({'lstm_pred': [lstm_p], 'xgb_pred': [xgb_p]}))[0]
-        res = get_sentiment_pipeline()(news[:512])[0]
-        impact = {'1 star':-0.05,'2 stars':-0.025,'3 stars':0.0,'4 stars':0.025,'5 stars':0.05}[res['label']]
+        # Meta prediction
+        meta_p = meta_model.predict(
+            pd.DataFrame({
+                'lstm_pred': [lstm_p],
+                'xgb_pred': [xgb_p]
+            })
+        )[0]
+
+        # Sentiment (optional)
+        try:
+            res = get_sentiment_pipeline()(news[:512])[0]
+
+            if res["label"] == "POSITIVE":
+                impact = 0.03
+            elif res["label"] == "NEGATIVE":
+                impact = -0.03
+            else:
+                impact = 0
+
+        except Exception as e:
+            print("Sentiment Error:", e)
+            impact = 0
+            res = {"label": "NEUTRAL"}
+
         final_p = meta_p * (1 + impact)
-        return f"Predicted Price: ₹{final_p:.2f} (Sentiment: {res['label']})"
-    except Exception as e:
-        return str(e)
+
+        return f"""
+        Predicted Price : ₹{final_p:.2f}
+
+        LSTM Prediction : ₹{lstm_p:.2f}
+        XGBoost Prediction : ₹{xgb_p:.2f}
+        Meta Prediction : ₹{meta_p:.2f}
+
+        Sentiment : {res['label']}
+        """
 
 demo = gr.Interface(fn=predict_next_day, inputs=[gr.Dropdown(TICKERS), gr.Textbox()], outputs="text")
 if __name__ == "__main__":
