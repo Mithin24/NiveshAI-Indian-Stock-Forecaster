@@ -79,7 +79,7 @@ def predict_next_day(ticker, news):
         xgb_p = xgb_model.predict(pd.DataFrame([df[FEATURE_COLS].iloc[-1].values], columns=xgb_model.feature_names_in_))[0]
         # Meta & Sentiment
         meta_p = meta_model.predict(pd.DataFrame({'lstm_pred': [lstm_p], 'xgb_pred': [xgb_p]}))[0]
-        res = get_sentiment_pipe(news[:512])[0]
+        res = get_sentiment_pipeline()(news[:512])[0]
         impact = {'1 star':-0.05,'2 stars':-0.025,'3 stars':0.0,'4 stars':0.025,'5 stars':0.05}[res['label']]
         final_p = meta_p * (1 + impact)
         return f"Predicted Price: ₹{final_p:.2f} (Sentiment: {res['label']})"
