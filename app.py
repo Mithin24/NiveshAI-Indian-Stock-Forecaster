@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import torch
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 # --- CONFIG ---
 SEQ_LENGTH = 120
 TICKERS = ['TCS.NS', 'RELIANCE.NS', 'HDFCBANK.NS', 'INFY.NS', 'SBIN.NS', 'ADANIPORTS.NS']
