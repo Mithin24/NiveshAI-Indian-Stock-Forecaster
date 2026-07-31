@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use("Agg")          # non-interactive backend – important for servers
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # --- CONFIG ---
 SEQ_LENGTH = 120
@@ -33,6 +34,8 @@ meta_model = None
 xgb_model = None
 _models_loaded = False
 
+# VADER analyzer (very lightweight, created once)
+analyzer = SentimentIntensityAnalyzer()
 
 def load_models_once():
     """Load all models the first time they are needed."""
@@ -56,31 +59,18 @@ def load_models_once():
         return False
 
 
-def simple_sentiment(text: str) -> float:
-    """Tiny keyword-based sentiment → impact factor. Zero extra memory."""
-    text = text.lower()
-    positive = ["win", "wins", "deal", "growth", "profit", "rise", "up", "boost", "strong", "beat", "positive"]
-    negative = ["loss", "fall", "down", "miss", "weak", "cut", "decline", "negative", "lawsuit", "probe"]
+def get_sentiment_impact(text: str) -> tuple[float, dict]:
+    """
+    VADER polarity scoring.
+    Returns (impact, scores_dict)
+    impact is scaled to roughly ±5%
+    """
+    if not text or not str(text).strip():
+        return 0.0, {"compound": 0.0, "pos": 0.0, "neu": 1.0, "neg": 0.0}
 
-    score = 0
-    for w in positive:
-        if w in text:
-            score += 1
-    for w in negative:
-        if w in text:
-            score -= 1
-
-    # Map to a small price impact
-    if score >= 2:
-        return 0.03
-    if score == 1:
-        return 0.015
-    if score == -1:
-        return -0.015
-    if score <= -2:
-        return -0.03
-    return 0.0
-
+    scores = analyzer.polarity_scores(str(text))
+    impact = scores["compound"] * 0.05   # scale to ±5%
+    return impact, scores
 
 def get_live_data(ticker):
     df = yf.download(ticker, period="2y", progress=False)
@@ -159,17 +149,25 @@ def predict_next_day(ticker, news):
         })
         final_meta_prediction_raw = float(meta_model.predict(new_meta_features)[0])
 
-        # --- Simple sentiment ---
-        impact = simple_sentiment(news or "")
+        # --- VADER Sentiment ---
+        impact, scores = get_sentiment_impact(news)
         final_forecast_price = final_meta_prediction_raw * (1 + impact)
-
+        
         # Technicals
         rsi = float(df['RSI'].iloc[-1])
         macd = float(df['MACD'].iloc[-1])
         macd_signal = float(df['MACD_Signal'].iloc[-1])
         bollinger_high = float(df['Bollinger_High'].iloc[-1])
         bollinger_low = float(df['Bollinger_Low'].iloc[-1])
-
+        
+        # Sentiment label
+        if scores['compound'] >= 0.05:
+            sentiment_label = "Positive"
+        elif scores['compound'] <= -0.05:
+            sentiment_label = "Negative"
+        else:
+            sentiment_label = "Neutral"
+            
         # ---- Plots (closed after creation to free RAM) ----
         fig_close = plt.figure(figsize=(10, 4))
         plt.plot(df.index, df['Close'], label='Close', color='blue')
@@ -203,10 +201,8 @@ def predict_next_day(ticker, news):
         fig_candlestick.update_layout(
             title=f'{ticker} Candlestick',
             xaxis_rangeslider_visible=False,
-            height=400
+            height=420
         )
-
-        sentiment_label = "Positive" if impact > 0 else "Negative" if impact < 0 else "Neutral"
 
         output_markdown = f"""
 **🇮🇳 Stock:** {ticker}  
@@ -223,7 +219,10 @@ def predict_next_day(ticker, news):
 **🌳 XGBoost Prediction:** ₹{xgb_pred_price:.2f}  
 **🔗 Meta-Model (before sentiment):** ₹{final_meta_prediction_raw:.2f}
 
-**📰 News Sentiment:** {sentiment_label} (impact {impact:+.1%})
+**📰 News Sentiment (VADER):** {sentiment_label}
+- Compound: `{scores['compound']:.3f}`
+- Positive: `{scores['pos']:.3f}` | Neutral: `{scores['neu']:.3f}` | Negative: `{scores['neg']:.3f}`
+- Price Impact Applied: **{impact:+.2%}**
 
 **🎯 Final Forecast:** ₹{final_forecast_price:.2f}
 """
