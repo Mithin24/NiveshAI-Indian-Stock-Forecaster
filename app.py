@@ -11,9 +11,6 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import torch
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
 # --- CONFIG ---
 SEQ_LENGTH = 120
 TICKERS = ['TCS.NS', 'RELIANCE.NS', 'HDFCBANK.NS', 'INFY.NS', 'SBIN.NS', 'ADANIPORTS.NS']
@@ -26,54 +23,53 @@ SCALER_PATH = os.path.join(MODELS_DIR, 'scaler_TCS_new_features.pkl') # Updated 
 META_MODEL_PATH = os.path.join(MODELS_DIR, 'meta_model.pkl')
 XGB_MODEL_PATH = os.path.join(MODELS_DIR, 'xgb_model.pkl') # Assuming you've saved the xgb_model from previous steps
 
-# --- Global model variables are expected to be loaded by a previous cell ---
-# The 'global' keyword within predict_next_day will correctly reference these.
-
-# Initialize models as None, they will be loaded in the setup_models function
+# --- Global model variables to be lazy-loaded ---
 lstm_model = None
 scaler = None
 meta_model = None
 xgb_model = None
+sentiment_pipe = None
 
-def setup_models():
-    global lstm_model, scaler, meta_model, xgb_model
+def load_models_if_not_loaded():
+    global lstm_model, scaler, meta_model, xgb_model, sentiment_pipe
 
-    # Load the best tuned LSTM model
-    try:
-        lstm_model = tf.keras.models.load_model(LSTM_MODEL_PATH, compile=False)
-        print("✅ Best tuned LSTM model loaded successfully!")
-    except Exception as e:
-        print(f"❌ Error loading LSTM model: {e}")
+    if lstm_model is None:
+        try:
+            lstm_model = tf.keras.models.load_model(LSTM_MODEL_PATH, compile=False)
+            print("✅ Best tuned LSTM model loaded successfully!")
+        except Exception as e:
+            print(f"❌ Error loading LSTM model: {e}")
 
-    # Load the scaler
-    try:
-        with open(SCALER_PATH, 'rb') as f:
-            scaler = pickle.load(f)
-        print("✅ Scaler loaded successfully!")
-    except Exception as e:
-        print(f"❌ Error loading scaler: {e}")
+    if scaler is None:
+        try:
+            with open(SCALER_PATH, 'rb') as f:
+                scaler = pickle.load(f)
+            print("✅ Scaler loaded successfully!")
+        except Exception as e:
+            print(f"❌ Error loading scaler: {e}")
 
-    # Load the Meta-Model
-    try:
-        with open(META_MODEL_PATH, 'rb') as f:
-            meta_model = pickle.load(f)
-        print("✅ Meta-model loaded successfully!")
-    except Exception as e:
-        print(f"❌ Error loading meta-model: {e}")
+    if meta_model is None:
+        try:
+            with open(META_MODEL_PATH, 'rb') as f:
+                meta_model = pickle.load(f)
+            print("✅ Meta-model loaded successfully!")
+        except Exception as e:
+            print(f"❌ Error loading meta-model: {e}")
 
-    # Load the XGBoost Model
-    try:
-        with open(XGB_MODEL_PATH, 'rb') as f:
-            xgb_model = pickle.load(f)
-        print("✅ XGBoost model loaded successfully!")
-    except Exception as e:
-        print(f"❌ Error loading XGBoost model: {e}")
+    if xgb_model is None:
+        try:
+            with open(XGB_MODEL_PATH, 'rb') as f:
+                xgb_model = pickle.load(f)
+            print("✅ XGBoost model loaded successfully!")
+        except Exception as e:
+            print(f"❌ Error loading XGBoost model: {e}")
 
-# Call setup_models to load them when the app starts
-setup_models()
-
-# NLP Pipeline
-sentiment_pipe = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment", framework="tf")
+    if sentiment_pipe is None:
+        try:
+            sentiment_pipe = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment", framework="tf")
+            print("✅ Sentiment pipeline loaded successfully!")
+        except Exception as e:
+            print(f"❌ Error loading sentiment pipeline: {e}")
 
 def get_live_data(ticker):
     """Fetch and engineer features for live data"""
@@ -117,11 +113,14 @@ def create_lagged_features_live(data, lag=5, features_list=FEATURE_COLS):
     return df_lagged.dropna()
 
 def predict_next_day(ticker, news):
-    global lstm_model, scaler, meta_model, xgb_model # Access global variables
+    # Ensure models are loaded before making predictions
+    load_models_if_not_loaded()
 
-    # Check if models are loaded
-    if lstm_model is None or scaler is None or meta_model is None or xgb_model is None:
-        return "⚠️ Model files not loaded correctly. Please ensure models are saved and paths are correct.", None, None, None, None
+    global lstm_model, scaler, meta_model, xgb_model, sentiment_pipe # Access global variables
+
+    # Check if models are loaded (after attempting to load)
+    if lstm_model is None or scaler is None or meta_model is None or xgb_model is None or sentiment_pipe is None:
+        return "⚠️ One or more model files or the sentiment pipeline could not be loaded correctly. Please check server logs.", None, None, None, None
 
     try:
         # 1. Get Live Data
@@ -258,7 +257,7 @@ demo = gr.Interface(
         gr.Plot(label="Bollinger Bands Trend"),
         gr.Plot(label="Candlestick Chart") # Added for candlestick chart
     ],
-    title="🇮🇳 Indian Stock LSTM Forecaster",
+    title="🇮🇳 Indian Stock LSTM Forecasting",
     description="Deep Learning + NLP Stock Forecaster"
 )
 if __name__ == "__main__":
