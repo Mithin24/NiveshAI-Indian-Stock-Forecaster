@@ -255,10 +255,17 @@ demo = gr.Interface(
         gr.Plot(label="Bollinger Bands Trend"),
         gr.Plot(label="Candlestick Chart") # Added for candlestick chart
     ],
-    title="🇮🇳 Indian Stock LSTM Predictor",
-    description="Deep Learning + NLP Stock Prediction"
+    title="🇮🇳 Indian Stock LSTM Forecaster",
+    description="Deep Learning + NLP Stock Forecaster"
 )
-
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(
+        server_name="0.0.0.0",   # required so Render can reach it
+        server_port=port,
+        share=False
+    )
 # To deploy to Hugging Face Spaces, you typically don't run demo.launch() in the app.py file itself.
 # The Gradio Spaces environment handles the launching.
 # For local testing, you can uncomment the line below:
