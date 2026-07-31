@@ -1,0 +1,12 @@
+gradio
+yfinance
+pandas
+numpy
+scikit-learn
+tensorflow
+transformers
+ta
+matplotlib
+plotly
+xgboost
+keras-tuner
