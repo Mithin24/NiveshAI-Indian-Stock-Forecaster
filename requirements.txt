@@ -8,3 +8,4 @@ ta
 matplotlib
 plotly
 xgboost
+vaderSentiment
