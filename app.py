@@ -69,7 +69,7 @@ def setup_models():
 setup_models()
 
 # NLP Pipeline
-sentiment_pipe = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+sentiment_pipe = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment", framework="tf")
 
 def get_live_data(ticker):
     """Fetch and engineer features for live data"""
