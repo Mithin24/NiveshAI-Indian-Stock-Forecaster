@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: indian-stock-predictor
+    name: NiveshAI-Indian-Stock-Forecaster
     env: python
     buildCommand: | 
       pip install -r requirements.txt
