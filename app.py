@@ -251,8 +251,8 @@ demo = gr.Interface(
         gr.Plot(label="Bollinger Bands Trend"),
         gr.Plot(label="Candlestick Chart")
     ],
-    title="🇮🇳 Indian Stock LSTM Predictor",
-    description="Deep Learning Stock Prediction (memory-optimized for free tier)"
+    title="🇮🇳 Indian Stock LSTM Forecaster",
+    description="Deep Learning + NLP Stock Forecaster"
 )
 
 if __name__ == "__main__":
