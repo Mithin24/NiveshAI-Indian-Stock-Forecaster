@@ -6,7 +6,6 @@ import numpy as np
 import pickle
 import os
 import tensorflow as tf
-from transformers import pipeline
 import ta
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -46,6 +45,8 @@ def get_sentiment_pipeline():
     global sentiment_pipe
 
     if sentiment_pipe is None:
+        from transformers import pipeline
+        
         sentiment_pipe = pipeline(
             "sentiment-analysis",
             model="distilbert-base-uncased-finetuned-sst-2-english",
@@ -168,9 +169,26 @@ def predict_next_day(ticker, news):
     except Exception as e:
         return f"❌ {e}"
 
-demo = gr.Interface(fn=predict_next_day, inputs=[gr.Dropdown(TICKERS), gr.Textbox()], outputs="text")
+print("Step 1")
+
+setup_models()
+
+print("Step 2")
+
+demo = gr.Interface(
+    fn=predict_next_day,
+    inputs=[gr.Dropdown(TICKERS), gr.Textbox()],
+    outputs="text"
+)
+
+print("Step 3")
+
 if __name__ == "__main__":
+    print("Step 4")
     demo.launch(
         server_name="0.0.0.0",
-        server_port=int(os.environ.get("PORT", 10000))
+        server_port=int(os.environ.get("PORT", 10000)),
+        show_error=True
     )
+
+print("Step 5")
