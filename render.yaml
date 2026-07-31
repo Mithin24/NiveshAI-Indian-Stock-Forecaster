@@ -2,12 +2,6 @@ services:
   - type: web
     name: NiveshAI-Indian-Stock-Forecaster
     env: python
-    buildCommand: | 
-      pip install -r requirements.txt
-    startCommand: | 
-      python app.py
-    port: 7860
-    # Optionally, you can add health checks, scaling, etc.
-    # healthCheckPath: /
-    # numInstances: 1
-    # plan: free # or 'starter', 'standard'
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    
